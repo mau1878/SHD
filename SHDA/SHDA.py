@@ -651,12 +651,11 @@ class SHDA:
             ValueError: On token fetch or API errors.
             requests.RequestException: On network issues.
         """
-        global pq
-        if pq is None:
-            try:
-                from pyquery import PyQuery as pq
-            except ImportError:
-                raise ImportError("pyquery is required but not installed.")
+        # Lazy import for BeautifulSoup
+        try:
+            from bs4 import BeautifulSoup
+        except ImportError:
+            raise ImportError("beautifulsoup4 is required for token parsing. Run 'pip install beautifulsoup4'.")
 
         if not self.__is_user_logged_in:
             print('You must be logged first')
@@ -680,12 +679,17 @@ class SHDA:
         }
         activity_page = self.__s.get(f"https://{self.__host}/Activity", headers=activity_headers)
         activity_page.raise_for_status()
-        doc = pq(activity_page.text)
-        token_elem = doc('input[name="__RequestVerificationToken"]')
+        soup = BeautifulSoup(activity_page.text, 'html.parser')
+        token_elem = soup.find('input', {'name': '__RequestVerificationToken'})
         if not token_elem:
-            raise ValueError("Could not find __RequestVerificationToken on /Activity page. Check if logged in and page structure.")
-        token = token_elem.attr('value')
+            # Debug: Print page info to diagnose
+            print("DEBUG: Page title:", soup.title.string if soup.title else 'No title')
+            print("DEBUG: Number of forms:", len(soup.find_all('form')))
+            print("DEBUG: Search for 'RequestVerificationToken' in text:", 'RequestVerificationToken' in activity_page.text)
+            raise ValueError("Could not find __RequestVerificationToken on /Activity page. Check if logged in and page structure. See DEBUG above.")
+        token = token_elem.get('value')
         self.__s.cookies.set('__RequestVerificationToken', token)
+        print(f"DEBUG: Token fetched: {token[:20]}...")  # Partial for security
 
         # Step 2: POST to /Activity/GetActivity
         headers = {
