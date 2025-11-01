@@ -609,6 +609,85 @@ class SHDA:
         df.volume = df.volume.astype(int)
 
         return df
+
+    def get_activity(self, comitente, fecha_desde, fecha_hasta, consolida='0'):
+        """
+        Fetches activity/transactions.
+        
+        Args:
+            comitente (str): Account number.
+            fecha_desde (str): Start date 'dd/mm/yyyy'.
+            fecha_hasta (str): End date 'dd/mm/yyyy'.
+            consolida (str): '0' or '1'.
+        
+        Returns:
+            list: Raw list of activity dicts from API.
+        """
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+
+        # Fetch __RequestVerificationToken from /Activity page
+        activity_headers = {
+            "Host": self.__host,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+        }
+        activity_page = self.__s.get(f"https://{self.__host}/Activity", headers=activity_headers)
+        activity_page.raise_for_status()
+        doc = pq(activity_page.text)
+        token_elem = doc('input[name="__RequestVerificationToken"]')
+        if not token_elem:
+            raise ValueError("Could not find __RequestVerificationToken on /Activity page.")
+        token = token_elem.attr('value')
+        self.__s.cookies.set('__RequestVerificationToken', token)
+
+        # Headers for POST
+        headers = {
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
+            "Content-Type": "application/json; charset=UTF-8",
+            "DNT": "1",
+            "Origin": f"https://{self.__host}",
+            "Priority": "u=1, i",
+            "Referer": f"https://{self.__host}/Activity",
+            "Sec-Ch-Ua": '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"',
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+            "X-Requested-With": "XMLHttpRequest",
+        }
+
+        # Payload
+        payload = {
+            'consolida': consolida,
+            'comitente': str(comitente),
+            'fechaDesde': fecha_desde,
+            'fechaHasta': fecha_hasta,
+        }
+
+        response = self.__s.post(
+            f"https://{self.__host}/Activity/GetActivity",
+            headers=headers,
+            json=payload
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not data.get('Success', False):
+            error = data.get('Error', {})
+            raise ValueError(f"API error: Codigo={error.get('Codigo')}, Descripcion={error.get('Descripcion')}")
+        return data.get('Result', [])
     
 
     #########################
@@ -632,5 +711,3 @@ class SHDA:
             raise BrokerNotSupportedException('Broker not supported.  Brokers supported: {}.'.format(supported_brokers))
 
         return broker_data[0]
-
-
