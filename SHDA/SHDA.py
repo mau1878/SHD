@@ -10,7 +10,10 @@ import datetime
 import requests
 import numpy as np
 import pandas as pd
-from pyquery import PyQuery as pq
+
+# Lazy import for pyquery to avoid setup-time errors
+pq = None
+
 from .portfolio import Portfolio
 from .common import brokers, BrokerNotSupportedException,convert_to_numeric_columns, SessionException
 
@@ -53,6 +56,13 @@ class SHDA:
     __sp_columns=['symbol','last','change','high','low','group']
     
     def __init__(self,broker,dni,user,password):
+        global pq
+        if pq is None:
+            try:
+                from pyquery import PyQuery as pq
+            except ImportError:
+                raise ImportError("pyquery is required but not installed. Run 'pip install pyquery'.")
+
         self.__s = requests.session()
         self.__host = self.__get_broker_data(broker)['page']
         self.__is_user_logged_in = False
@@ -363,6 +373,13 @@ class SHDA:
         return df
 
     def account(self,comitente):
+        global pq
+        if pq is None:
+            try:
+                from pyquery import PyQuery as pq
+            except ImportError:
+                raise ImportError("pyquery is required but not installed.")
+
         if not self.__is_user_logged_in:
             print('You must be logged first')
             exit()
@@ -482,6 +499,13 @@ class SHDA:
         return df
 
     def get_personal_portfolio(self):
+        global pq
+        if pq is None:
+            try:
+                from pyquery import PyQuery as pq
+            except ImportError:
+                raise ImportError("pyquery is required but not installed.")
+
         if not self.__is_user_logged_in:
             print('You must be logged first')
             exit()
@@ -612,22 +636,33 @@ class SHDA:
 
     def get_activity(self, comitente, fecha_desde, fecha_hasta, consolida='0'):
         """
-        Fetches activity/transactions.
+        Fetches activity/transactions for the broker (unified platform).
         
         Args:
-            comitente (str): Account number.
-            fecha_desde (str): Start date 'dd/mm/yyyy'.
-            fecha_hasta (str): End date 'dd/mm/yyyy'.
-            consolida (str): '0' or '1'.
+            comitente (str): Account number (e.g., '47878').
+            fecha_desde (str): Start date in 'dd/mm/yyyy' format (e.g., '01/10/2025').
+            fecha_hasta (str): End date in 'dd/mm/yyyy' format (e.g., '01/11/2025').
+            consolida (str): '0' or '1' for consolidated view (default '0').
         
         Returns:
-            list: Raw list of activity dicts from API.
+            list: List of activity dicts (e.g., [{'Comprobante': 'CCTE', ...}]).
+        
+        Raises:
+            ValueError: On token fetch or API errors.
+            requests.RequestException: On network issues.
         """
+        global pq
+        if pq is None:
+            try:
+                from pyquery import PyQuery as pq
+            except ImportError:
+                raise ImportError("pyquery is required but not installed.")
+
         if not self.__is_user_logged_in:
             print('You must be logged first')
             exit()
 
-        # Fetch __RequestVerificationToken from /Activity page
+        # Step 1: GET /Activity to fetch __RequestVerificationToken
         activity_headers = {
             "Host": self.__host,
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
@@ -635,22 +670,24 @@ class SHDA:
             "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
             "Accept-Encoding": "gzip, deflate, br",
             "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
             "Sec-Fetch-Dest": "document",
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "same-origin",
             "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests": "1",
+            "Referer": f"https://{self.__host}/",
         }
         activity_page = self.__s.get(f"https://{self.__host}/Activity", headers=activity_headers)
         activity_page.raise_for_status()
         doc = pq(activity_page.text)
         token_elem = doc('input[name="__RequestVerificationToken"]')
         if not token_elem:
-            raise ValueError("Could not find __RequestVerificationToken on /Activity page.")
+            raise ValueError("Could not find __RequestVerificationToken on /Activity page. Check if logged in and page structure.")
         token = token_elem.attr('value')
         self.__s.cookies.set('__RequestVerificationToken', token)
 
-        # Headers for POST
+        # Step 2: POST to /Activity/GetActivity
         headers = {
             "Accept": "application/json, text/javascript, */*; q=0.01",
             "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
@@ -669,7 +706,6 @@ class SHDA:
             "X-Requested-With": "XMLHttpRequest",
         }
 
-        # Payload
         payload = {
             'consolida': consolida,
             'comitente': str(comitente),
@@ -687,8 +723,8 @@ class SHDA:
         if not data.get('Success', False):
             error = data.get('Error', {})
             raise ValueError(f"API error: Codigo={error.get('Codigo')}, Descripcion={error.get('Descripcion')}")
-        return data.get('Result', [])
-    
+
+        return data.get('Result', [])  # List of activity dicts
 
     #########################
     #### PRIVATE METHODS ####
