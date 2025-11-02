@@ -10,10 +10,7 @@ import datetime
 import requests
 import numpy as np
 import pandas as pd
-
-# Lazy import for pyquery to avoid setup-time errors
-pq = None
-
+from pyquery import PyQuery as pq
 from .portfolio import Portfolio
 from .common import brokers, BrokerNotSupportedException,convert_to_numeric_columns, SessionException
 
@@ -56,13 +53,6 @@ class SHDA:
     __sp_columns=['symbol','last','change','high','low','group']
     
     def __init__(self,broker,dni,user,password):
-        global pq
-        if pq is None:
-            try:
-                from pyquery import PyQuery as pq
-            except ImportError:
-                raise ImportError("pyquery is required but not installed. Run 'pip install pyquery'.")
-
         self.__s = requests.session()
         self.__host = self.__get_broker_data(broker)['page']
         self.__is_user_logged_in = False
@@ -177,92 +167,542 @@ class SHDA:
         df.settlement=settlement 
         return df
 
-    # [All other get_* methods, account, get_options, get_MERVAL, get_personal_portfolio, get_repos, get_daily_history - copy from your current file to here]
+    def get_galpones(self,settlement):
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+        headers = {
+            "Accept" : "application/json, text/javascript, */*; q=0.01",
+            "Accept-Encoding" : "gzip, deflate",
+            "Accept-Language" : "en-US,en;q=0.5",
+            "Connection" : "keep-alive",    
+            "Content-Type" : "application/json; charset=utf-8",
+            "DNT" : "1",    
+            "Host" : f"{self.__host}",
+            "Origin" : f"https://{self.__host}",
+            "Referer" : f"https://{self.__host}/Prices/Stocks",
+            "Sec-Fetch-Dest" : "empty",
+            "Sec-Fetch-Mode" : "cors",
+            "Sec-Fetch-Site" : "same-origin",
+            "TE" : "trailers",
+            "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
+            "X-Requested-With" : "XMLHttpRequest"
+        }
+
+        data = '{"panel":"panelGeneral","term":"'+str(self.__settlements_map[settlement])+'"}'
+        response = self.__s.post(url = f"https://{self.__host}/Prices/GetByPanel", headers=headers, data = data)
+        status = response.status_code
+        if status != 200:
+            print("GetByPanel", status)  
+            exit()
+        data = response.json()
+        df = pd.DataFrame(data['Result']['Stocks'])
+        df = pd.DataFrame(data['Result']['Stocks']) if data['Result'] and data['Result']['Stocks'] else pd.DataFrame()
+        df.TradeDate = pd.to_datetime(df.TradeDate, format='%Y%m%d', errors='coerce') + pd.to_timedelta(df.Hour, errors='coerce')
+        df = df[self.__filter_columns].copy()
+        df.columns = self.__securities_columns
+        df = convert_to_numeric_columns(df, self.__numeric_columns)
+        df.group = df.group.apply(lambda x: self.__boards[x] if x in self.__boards else self.__boards[0])
+        df.settlement=settlement 
+        return df
+
+    def get_cedear(self,settlement):
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+        headers = {
+            "Accept" : "application/json, text/javascript, */*; q=0.01",
+            "Accept-Encoding" : "gzip, deflate",
+            "Accept-Language" : "en-US,en;q=0.5",
+            "Connection" : "keep-alive",    
+            "Content-Type" : "application/json; charset=utf-8",
+            "DNT" : "1",    
+            "Host" : f"{self.__host}",
+            "Origin" : f"https://{self.__host}",
+            "Referer" : f"https://{self.__host}/Prices/Stocks",
+            "Sec-Fetch-Dest" : "empty",
+            "Sec-Fetch-Mode" : "cors",
+            "Sec-Fetch-Site" : "same-origin",
+            "TE" : "trailers",
+            "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
+            "X-Requested-With" : "XMLHttpRequest"
+        }
+
+        data = '{"panel":"cedears","term":"'+str(self.__settlements_map[settlement])+'"}'
+        response = self.__s.post(url = f"https://{self.__host}/Prices/GetByPanel", headers=headers, data = data)
+        status = response.status_code
+        if status != 200:
+            print("GetByPanel", status)  
+            exit()
+        data = response.json()
+        df = pd.DataFrame(data['Result']['Stocks'])
+        df = pd.DataFrame(data['Result']['Stocks']) if data['Result'] and data['Result']['Stocks'] else pd.DataFrame()
+        df.TradeDate = pd.to_datetime(df.TradeDate, format='%Y%m%d', errors='coerce') + pd.to_timedelta(df.Hour, errors='coerce')
+        df = df[self.__filter_columns].copy()
+        df.columns = self.__securities_columns
+        df = convert_to_numeric_columns(df, self.__numeric_columns)
+        df.group = df.group.apply(lambda x: self.__boards[x] if x in self.__boards else self.__boards[0])
+        df.settlement=settlement 
+        return df
+
+    def get_bonds(self,settlement):
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+        headers = {
+            "Accept" : "application/json, text/javascript, */*; q=0.01",
+            "Accept-Encoding" : "gzip, deflate",
+            "Accept-Language" : "en-US,en;q=0.5",
+            "Connection" : "keep-alive",    
+            "Content-Type" : "application/json; charset=utf-8",
+            "DNT" : "1",    
+            "Host" : f"{self.__host}",
+            "Origin" : f"https://{self.__host}",
+            "Referer" : f"https://{self.__host}/Prices/Stocks",
+            "Sec-Fetch-Dest" : "empty",
+            "Sec-Fetch-Mode" : "cors",
+            "Sec-Fetch-Site" : "same-origin",
+            "TE" : "trailers",
+            "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
+            "X-Requested-With" : "XMLHttpRequest"
+        }
+
+        data = '{"panel":"rentaFija","term":"'+str(self.__settlements_map[settlement])+'"}'
+        response = self.__s.post(url = f"https://{self.__host}/Prices/GetByPanel", headers=headers, data = data)
+        status = response.status_code
+        if status != 200:
+            print("GetByPanel", status)  
+            exit()
+        data = response.json()
+        df = pd.DataFrame(data['Result']['Stocks'])
+        df = pd.DataFrame(data['Result']['Stocks']) if data['Result'] and data['Result']['Stocks'] else pd.DataFrame()
+        df.TradeDate = pd.to_datetime(df.TradeDate, format='%Y%m%d', errors='coerce') + pd.to_timedelta(df.Hour, errors='coerce')
+        df = df[self.__filter_columns].copy()
+        df.columns = self.__securities_columns
+        df = convert_to_numeric_columns(df, self.__numeric_columns)
+        df.group = df.group.apply(lambda x: self.__boards[x] if x in self.__boards else self.__boards[0])
+        df.settlement=settlement 
+        return df
+
+    def get_short_term_bonds(self,settlement):
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+        headers = {
+            "Accept" : "application/json, text/javascript, */*; q=0.01",
+            "Accept-Encoding" : "gzip, deflate",
+            "Accept-Language" : "en-US,en;q=0.5",
+            "Connection" : "keep-alive",    
+            "Content-Type" : "application/json; charset=utf-8",
+            "DNT" : "1",    
+            "Host" : f"{self.__host}",
+            "Origin" : f"https://{self.__host}",
+            "Referer" : f"https://{self.__host}/Prices/Stocks",
+            "Sec-Fetch-Dest" : "empty",
+            "Sec-Fetch-Mode" : "cors",
+            "Sec-Fetch-Site" : "same-origin",
+            "TE" : "trailers",
+            "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
+            "X-Requested-With" : "XMLHttpRequest"
+        }
+
+        data = '{"panel":"letes","term":"'+str(self.__settlements_map[settlement])+'"}'
+        response = self.__s.post(url = f"https://{self.__host}/Prices/GetByPanel", headers=headers, data = data)
+        status = response.status_code
+        if status != 200:
+            print("GetByPanel", status)  
+            exit()
+        data = response.json()
+        df = pd.DataFrame(data['Result']['Stocks'])
+        df = pd.DataFrame(data['Result']['Stocks']) if data['Result'] and data['Result']['Stocks'] else pd.DataFrame()
+        df.TradeDate = pd.to_datetime(df.TradeDate, format='%Y%m%d', errors='coerce') + pd.to_timedelta(df.Hour, errors='coerce')
+        df = df[self.__filter_columns].copy()
+        df.columns = self.__securities_columns
+        df = convert_to_numeric_columns(df, self.__numeric_columns)
+        df.group = df.group.apply(lambda x: self.__boards[x] if x in self.__boards else self.__boards[0])
+        df.settlement=settlement 
+        return df
+
+    def get_corporate_bonds(self,settlement):
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+        headers = {
+            "Accept" : "application/json, text/javascript, */*; q=0.01",
+            "Accept-Encoding" : "gzip, deflate",
+            "Accept-Language" : "en-US,en;q=0.5",
+            "Connection" : "keep-alive",    
+            "Content-Type" : "application/json; charset=utf-8",
+            "DNT" : "1",    
+            "Host" : f"{self.__host}",
+            "Origin" : f"https://{self.__host}",
+            "Referer" : "https://{self.__host}/Prices/Stocks",
+            "Sec-Fetch-Dest" : "empty",
+            "Sec-Fetch-Mode" : "cors",
+            "Sec-Fetch-Site" : "same-origin",
+            "TE" : "trailers",
+            "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
+            "X-Requested-With" : "XMLHttpRequest"
+        }
+
+        data = '{"panel":"obligaciones","term":"'+str(self.__settlements_map[settlement])+'"}'
+        response = self.__s.post(url = f"https://{self.__host}/Prices/GetByPanel", headers=headers, data = data)
+        status = response.status_code
+        if status != 200:
+            print("GetByPanel", status)  
+            exit()
+        data = response.json()
+        df = pd.DataFrame(data['Result']['Stocks'])
+        df = pd.DataFrame(data['Result']['Stocks']) if data['Result'] and data['Result']['Stocks'] else pd.DataFrame()
+        df.TradeDate = pd.to_datetime(df.TradeDate, format='%Y%m%d', errors='coerce') + pd.to_timedelta(df.Hour, errors='coerce')
+        df = df[self.__filter_columns].copy()
+        df.columns = self.__securities_columns
+        df = convert_to_numeric_columns(df, self.__numeric_columns)
+        df.group = df.group.apply(lambda x: self.__boards[x] if x in self.__boards else self.__boards[0])
+        df.settlement=settlement 
+        return df
+
+    def account(self,comitente):
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+
+        payload = {'comitente': str(comitente),
+            'consolida': '0',
+            'proceso': '22',
+            'fechaDesde': None,
+            'fechaHasta': None,
+            'tipo': None,
+            'especie': None,
+            'comitenteMana': None}
+
+        portfolio = self.__s.post(f"https://{self.__host}/Consultas/GetConsulta",json=payload).json()
+        portfolio = portfolio["Result"]["Activos"]
+        detailColumns=["IMPO",	"ESPE",	"TESP",	"NERE",	"GTOS",	"DETA",	"TIPO"	,"Hora"	,"AMPL"	,"DIVI"	,"TICK"	,"CANT"	,"PCIO"	,"CAN3"	,"CAN2","CAN0"]
+        RowOne=["IMPO",	"ESPE",	"TESP",	"NERE",	"GTOS",	"DETA",	"TIPO"	,"Hora"	,"AMPL"	,"DIVI"	,"TICK"	,"CANT"	,"PCIO"	,"CAN3"	,"CAN2","CAN0"]
+
+        df=pd.DataFrame(portfolio)
+        df2=pd.DataFrame(columns=detailColumns)
+        df2.at[0,"IMPO"]=df.at[0,"IMPO"]
+        df2.at[0,"ESPE"]="Cash"
+        if len(df)>0:
+            for i in range(1,len(df)):
+                df2=pd.concat([df2, pd.DataFrame(df.at[i,"Subtotal"])])
+        return df2
+
+    def get_options(self):
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+        headers = {
+            "Accept" : "application/json, text/javascript, */*; q=0.01",
+            "Accept-Encoding" : "gzip, deflate",
+            "Accept-Language" : "en-US,en;q=0.5",
+            "Connection" : "keep-alive",    
+            "Content-Type" : "application/json; charset=utf-8",
+            "DNT" : "1",    
+            "Host" : f"{self.__host}",
+            "Origin" : f"https://{self.__host}",
+            "Referer" : f"https://{self.__host}/Prices/Stocks",
+            "Sec-Fetch-Dest" : "empty",
+            "Sec-Fetch-Mode" : "cors",
+            "Sec-Fetch-Site" : "same-origin",
+            "TE" : "trailers",
+            "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
+            "X-Requested-With" : "XMLHttpRequest"
+        }
+
+        data = '{"panel":"opciones","term":"''"}'
+
+        _filter_columns = ['Symbol', 'BuyQuantity', 'BuyPrice', 'SellPrice', 'SellQuantity', 'LastPrice', 'VariationRate', 'StartPrice', 'MaxPrice', 'MinPrice', 'PreviousClose', 'TotalAmountTraded', 'TotalQuantityTraded', 'Trades', 'TradeDate', 'MaturityDate', 'StrikePrice', 'PutOrCall', 'Issuer']
+        _numeric_columns = ['last', 'open', 'high', 'low', 'volume', 'turnover', 'operations', 'change', 'bid_size', 'bid', 'ask_size', 'ask', 'previous_close', 'strike']
+        _options_columns = ['symbol', 'bid_size', 'bid', 'ask', 'ask_size', 'last', 'change', 'open', 'high', 'low', 'previous_close', 'turnover', 'volume', 'operations', 'datetime', 'expiration', 'strike', 'kind', 'underlying_asset']
+
+        response = self.__s.post(url = f"https://{self.__host}/Prices/GetByPanel", headers=headers, data = data)
+        status = response.status_code
+        if status != 200:
+            print("GetByPanel", status)  
+            exit()
+
+        data = response.json()
+        df = pd.DataFrame(data['Result']['Stocks'])
+        df = pd.DataFrame(data['Result']['Stocks']) if data['Result'] and data['Result']['Stocks'] else pd.DataFrame()
+        df.TradeDate = pd.to_datetime(df.TradeDate, format='%Y%m%d', errors='coerce') + pd.to_timedelta(df.Hour, errors='coerce')
+
+        if not df.empty:
+            df.TradeDate = pd.to_datetime(df.TradeDate, format='%Y%m%d', errors='coerce') + pd.to_timedelta(df.Hour, errors='coerce')
+            df.MaturityDate = pd.to_datetime(df.MaturityDate, format='%Y%m%d', errors='coerce')
+            df.PutOrCall = df.PutOrCall.apply(lambda x: self.__call_put_map[x] if x in self.__call_put_map else self.__call_put_map[0])
+
+            df = df[_filter_columns].copy()
+            df.columns = _options_columns
+
+            df = convert_to_numeric_columns(df, _numeric_columns)
+            df = df[df.strike > 0].copy() # Remove non options rows
+
+        else:
+            df = pd.DataFrame(columns=_options_columns).set_index(['symbol'])
+
+        return df
+
+    def get_MERVAL(self):
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+        headers = {
+            "Accept" : "application/json, text/javascript, */*; q=0.01",
+            "Accept-Encoding" : "gzip, deflate",
+            "Accept-Language" : "en-US,en;q=0.5",
+            "Connection" : "keep-alive",    
+            "Content-Type" : "application/json; charset=utf-8",
+            "DNT" : "1",    
+            "Host" : f"{self.__host}",
+            "Origin" : f"https://{self.__host}",
+            "Referer" : f"https://{self.__host}/Prices/Stocks",
+            "Sec-Fetch-Dest" : "empty",
+            "Sec-Fetch-Mode" : "cors",
+            "Sec-Fetch-Site" : "same-origin",
+            "TE" : "trailers",
+            "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
+            "X-Requested-With" : "XMLHttpRequest"
+        }
+
+        data = '{"panel":"indices","term":""}'
+        response = self.__s.post(url = f"https://{self.__host}/Prices/GetByPanel", headers=headers, data = data)
+        status = response.status_code
+        if status != 200:
+            print("GetByPanel", status)  
+            exit()
+
+        data = response.json()
+        df = pd.DataFrame(data['Result']['Stocks'])
+        df = df[self.__filter_columns_sp].copy()
+        df.columns = self.__sp_columns
+        df = convert_to_numeric_columns(df, self.__numeric_columns_sp)
+        return df
+
+    def get_personal_portfolio(self):
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+        headers = {
+            "Accept" : "application/json, text/javascript, */*; q=0.01",
+            "Accept-Encoding" : "gzip, deflate",
+            "Accept-Language" : "en-US,en;q=0.5",
+            "Connection" : "keep-alive",    
+            "Content-Type" : "application/json; charset=utf-8",
+            "DNT" : "1",    
+            "Host" : f"{self.__host}",
+            "Origin" : f"https://{self.__host}",
+            "Referer" : f"https://{self.__host}/Prices/Stocks",
+            "Sec-Fetch-Dest" : "empty",
+            "Sec-Fetch-Mode" : "cors",
+            "Sec-Fetch-Site" : "same-origin",
+            "TE" : "trailers",
+            "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
+            "X-Requested-With" : "XMLHttpRequest"
+        }
+
+        data = '{"panel":"indices","term":""}'
+        response = self.__s.post(url = f"https://{self.__host}/Prices/GetFavoritos", headers=headers)
+        status = response.status_code
+
+        data = response.json()
+        data = pd.DataFrame(data['Result'])
+
+        if status != 200:
+            print("GetByPanel", status)  
+            exit()
+
+        df = pd.DataFrame(data)
+        if df.empty:
+            return self.__empty_personal_portfolio.copy()
+
+        filter_columns = ['Symbol', 'Term', 'BuyQuantity', 'BuyPrice', 'SellPrice', 'SellQuantity', 'LastPrice', 'VariationRate', 'StartPrice', 'MaxPrice', 'MinPrice', 'PreviousClose', 'TotalAmountTraded', 'TotalQuantityTraded', 'Trades', 'TradeDate', 'MaturityDate', 'StrikePrice', 'PutOrCall', 'Issuer', 'ClosePrice']
+        numeric_columns = ['last', 'close', 'open', 'high', 'low', 'volume', 'turnover', 'operations', 'change', 'bid_size', 'bid', 'ask_size', 'ask', 'previous_close', 'strike']
+        numeric_options_columns = ['MaturityDate', 'StrikePrice']
+        alpha_option_columns = ['PutOrCall', 'Issuer']
+
+        df.TradeDate = pd.to_datetime(df.TradeDate, format='%Y%m%d', errors='coerce') + pd.to_timedelta(df.Hour, errors='coerce')
+        df.loc[df.StrikePrice == 0, alpha_option_columns] = ''
+        df.loc[df.StrikePrice == 0, numeric_options_columns] = np.nan
+        df.MaturityDate = pd.to_datetime(df.MaturityDate, format='%Y%m%d', errors='coerce')
+        df.PutOrCall = df.PutOrCall.apply(lambda x: self.__call_put_map[x] if x in self.__call_put_map else self.__call_put_map[0])
+        df.Term = df.Term.apply(lambda x: self.__settlements_int_map[x] if x in self.__settlements_int_map else '')
+        df = df[filter_columns].copy()
+        df.columns = self.__personal_portfolio_columns
+        df = convert_to_numeric_columns(df, numeric_columns)
+        return df
+    
+    def get_repos(self):
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+        headers = {
+            "Accept" : "application/json, text/javascript, */*; q=0.01",
+            "Accept-Encoding" : "gzip, deflate",
+            "Accept-Language" : "en-US,en;q=0.5",
+            "Connection" : "keep-alive",    
+            "Content-Type" : "application/json; charset=utf-8",
+            "DNT" : "1",    
+            "Host" : f"{self.__host}",
+            "Origin" : f"https://{self.__host}",
+            "Referer" : f"https://{self.__host}/Prices/Stocks",
+            "Sec-Fetch-Dest" : "empty",
+            "Sec-Fetch-Mode" : "cors",
+            "Sec-Fetch-Site" : "same-origin",
+            "TE" : "trailers",
+            "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
+            "X-Requested-With" : "XMLHttpRequest"
+        }
+
+        data = '{"panel":"cauciones","term":""}'
+        response = self.__s.post(url = f"https://{self.__host}/Prices/GetByPanel",data=data ,headers=headers)
+        status = response.status_code
+
+
+        data = response.json()
+        df = pd.DataFrame(data['Result']['Stocks'])
+
+        if status != 200:
+            print("GetByPanel", status)  
+            exit()
+
+        filter_columns = ['Symbol', 'CantDias', 'Term', 'BuyQuantity', 'BuyPrice', 'SellPrice', 'SellQuantity', 'LastPrice', 'VariationRate', 'StartPrice', 'MaxPrice', 'MinPrice', 'PreviousClose', 'TotalAmountTraded', 'TotalQuantityTraded', 'Trades', 'TradeDate', 'ClosePrice']
+        numeric_columns = ['last', 'open', 'high', 'low', 'volume', 'turnover', 'operations', 'change', 'bid_amount', 'bid_rate', 'ask_rate', 'ask_amount', 'previous_close', 'close']
+
+        if not df.empty:
+            df.TradeDate = pd.to_datetime(df.TradeDate, format='%Y%m%d', errors='coerce') + pd.to_timedelta(df.Hour, errors='coerce')
+
+            df = df[filter_columns].copy()
+            df.columns = self.__repos_columns
+
+            df = convert_to_numeric_columns(df, numeric_columns)
+            df = df.set_index(self.__repos_index)
+        else:
+            df = self.__empty_repos.copy()
+
+        return df
+    
+    def get_daily_history(self, symbol, from_date, to_date):
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+
+        headers = {
+            'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
+            'Accept-Encoding': 'gzip, deflate',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+
+        url = 'https://{}/HistoricoPrecios/history?symbol={}&resolution=D&from={}&to={}'.format(
+            self.__host,
+            symbol.upper(),
+            self.__convert_datetime_to_epoch(from_date),
+            self.__convert_datetime_to_epoch(to_date))
+
+        resp = self.__s.get(url = url ,headers=headers)
+        resp.raise_for_status()
+        resp = resp.json()
+        df = pd.DataFrame({'date': resp['t'], 'open': resp['o'], 'high': resp['h'], 'low': resp['l'], 'close': resp['c'], 'volume': resp['v']})
+        df.date = pd.to_datetime(df.date, unit='s').dt.date
+        df.volume = df.volume.astype(int)
+
+        return df
 
     def get_activity(self, comitente, fecha_desde, fecha_hasta, consolida='0'):
         """
         Fetches activity/transactions for the broker (unified platform).
-        Uses Selenium for JS-loaded token.
+        
+        Args:
+            comitente (str): Account number (e.g., '47878').
+            fecha_desde (str): Start date in 'dd/mm/yyyy' format (e.g., '01/10/2025').
+            fecha_hasta (str): End date in 'dd/mm/yyyy' format (e.g., '01/11/2025').
+            consolida (str): '0' or '1' for consolidated view (default '0').
+        
+        Returns:
+            list: List of activity dicts (e.g., [{'Comprobante': 'CCTE', ...}]).
+        
+        Raises:
+            ValueError: On API errors.
+            requests.RequestException: On network issues.
         """
         if not self.__is_user_logged_in:
             print('You must be logged first')
             exit()
 
+        # Try to get token from /Activity
         token = None
-
-        # Try Selenium for token
-        try:
-            from selenium import webdriver
-            from selenium.webdriver.chrome.service import Service
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.support.ui import WebDriverWait
-            from selenium.webdriver.support import expected_conditions as EC
-            from webdriver_manager.chrome import ChromeDriverManager
-            from bs4 import BeautifulSoup
-            print("DEBUG: Loading /Activity with Selenium for token...")
-            options = webdriver.ChromeOptions()
-            options.add_argument('--headless')
-            options.add_argument('--no-sandbox')
-            options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36')
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=options)
-            driver.get(f"https://{self.__host}/Activity")
-            wait = WebDriverWait(driver, 10)
-            token_elem = wait.until(EC.presence_of_element_located((By.NAME, '__RequestVerificationToken')))
-            token = token_elem.get_attribute('value')
-            driver.quit()
-            print("DEBUG: Token fetched with Selenium.")
-        except ImportError:
-            print("DEBUG: Selenium not available—trying POST without token (may fail). Install: pip install selenium webdriver-manager beautifulsoup4")
-        except Exception as e:
-            print(f"DEBUG: Selenium failed ({e})—trying POST without token.")
-
-        # Set token if found
-        if token:
-            self.__s.cookies.set('__RequestVerificationToken', token)
-
-        # POST to GetActivity
-        headers = {
-            "Accept": "application/json, text/javascript, */*; q=0.01",
-            "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
-            "Content-Type": "application/json; charset=UTF-8",
-            "DNT": "1",
-            "Origin": f"https://{self.__host}",
-            "Priority": "u=1, i",
-            "Referer": f"https://{self.__host}/Activity",
-            "Sec-Ch-Ua": '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
-            "Sec-Ch-Ua-Mobile": "?0",
-            "Sec-Ch-Ua-Platform": '"Windows"',
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-origin",
+        activity_headers = {
+            "Host": self.__host,
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
-            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+            "Referer": f"https://{self.__host}/",
+        }
+        activity_page = self.__s.get(f"https://{self.__host}/Activity", headers=activity_headers)
+        activity_page.raise_for_status()
+        if 'RequestVerificationToken' in activity_page.text:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(activity_page.text, 'html.parser')
+            token_elem = soup.find('input', {'name': '__RequestVerificationToken'})
+            if token_elem:
+                token = token_elem.get('value')
+                self.__s.cookies.set('__RequestVerificationToken', token)
+                print("DEBUG: Token set from page.")
+
+        # POST to GetActivity (with or without token)
+        headers = {
+            'accept': 'application/json, text/javascript, */*; q=0.01',
+            'accept-language': 'es-AR,es;q=0.9,de-DE;q=0.8,de;q=0.7,es-419;q=0.6,en;q=0.5',
+            'content-type': 'application/json; charset=UTF-8',
+            'dnt': '1',
+            'origin': f'https://{self.__host}',
+            'priority': 'u=1, i',
+            'referer': f'https://{self.__host}/Activity',
+            'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-origin',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+            'x-requested-with': 'XMLHttpRequest',
         }
 
-        payload = {
-            'consolida': consolida,
-            'comitente': str(comitente),
-            'fechaDesde': fecha_desde,
-            'fechaHasta': fecha_hasta,
+        json_data = {
+            'consolida': '0',
+            'comitente': '47878',
+            'fechaDesde': '01/10/2025',
+            'fechaHasta': '01/11/2025',
         }
 
-        response = self.__s.post(
-            f"https://{self.__host}/Activity/GetActivity",
+        response = requests.post(
+            f'https://{self.__host}/Activity/GetActivity',
+            cookies=self.__s.cookies,
             headers=headers,
-            json=payload
+            json=json_data,
         )
+
         print(f"DEBUG: POST status: {response.status_code}")
-        response.raise_for_status()
+        if response.status_code != 200:
+            print(f"DEBUG: POST response: {response.text[:500]}")
+            response.raise_for_status()
+
         data = response.json()
         if not data.get('Success', False):
             error = data.get('Error', {})
             raise ValueError(f"API error: Codigo={error.get('Codigo')}, Descripcion={error.get('Descripcion')}")
 
-        return data.get('Result', [])
-
-    # [Private methods __convert_datetime_to_epoch and __get_broker_data - copy from original]
+        return data.get('Result', [])  # List of activity dicts
 
     #########################
     #### PRIVATE METHODS ####
