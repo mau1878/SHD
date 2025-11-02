@@ -138,95 +138,91 @@ class SHDA:
         self.get_portfolio= Portfolio(host=self.__host,session=self.__s,headers=headers)
         
 
-    # ... (All other methods like get_bluechips, get_galpones, etc., exactly as in original - include them when pasting)
+    def get_bluechips(self,settlement):
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
+        headers = {
+            "Accept" : "application/json, text/javascript, */*; q=0.01",
+            "Accept-Encoding" : "gzip, deflate",
+            "Accept-Language" : "en-US,en;q=0.5",
+            "Connection" : "keep-alive",    
+            "Content-Type" : "application/json; charset=utf-8",
+            "DNT" : "1",    
+            "Host" : f"{self.__host}",
+            "Origin" : f"https://{self.__host}",
+            "Referer" : f"https://{self.__host}/Prices/Stocks",
+            "Sec-Fetch-Dest" : "empty",
+            "Sec-Fetch-Mode" : "cors",
+            "Sec-Fetch-Site" : "same-origin",
+            "TE" : "trailers",
+            "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
+            "X-Requested-With" : "XMLHttpRequest"
+        }
+
+        data = '{"panel":"accionesLideres","term":"'+str(self.__settlements_map[settlement])+'"}'
+        response = self.__s.post(url = f"https://{self.__host}/Prices/GetByPanel", headers=headers, data = data)
+        status = response.status_code
+        if status != 200:
+            print("GetByPanel", status)  
+            exit()
+        data = response.json()
+        df = pd.DataFrame(data['Result']['Stocks'])
+        df = pd.DataFrame(data['Result']['Stocks']) if data['Result'] and data['Result']['Stocks'] else pd.DataFrame()
+        df.TradeDate = pd.to_datetime(df.TradeDate, format='%Y%m%d', errors='coerce') + pd.to_timedelta(df.Hour, errors='coerce')
+        df = df[self.__filter_columns].copy()
+        df.columns = self.__securities_columns
+        df = convert_to_numeric_columns(df, self.__numeric_columns)
+        df.group = df.group.apply(lambda x: self.__boards[x] if x in self.__boards else self.__boards[0])
+        df.settlement=settlement 
+        return df
+
+    # [All other get_* methods, account, get_options, get_MERVAL, get_personal_portfolio, get_repos, get_daily_history - copy from your current file to here]
 
     def get_activity(self, comitente, fecha_desde, fecha_hasta, consolida='0'):
         """
         Fetches activity/transactions for the broker (unified platform).
-        
-        Args:
-            comitente (str): Account number (e.g., '47878').
-            fecha_desde (str): Start date in 'dd/mm/yyyy' format (e.g., '01/10/2025').
-            fecha_hasta (str): End date in 'dd/mm/yyyy' format (e.g., '01/11/2025').
-            consolida (str): '0' or '1' for consolidated view (default '0').
-        
-        Returns:
-            list: List of activity dicts (e.g., [{'Comprobante': 'CCTE', ...}]).
-        
-        Raises:
-            ValueError: On API errors.
-            requests.RequestException: On network issues.
+        Uses Selenium for JS-loaded token.
         """
-        # Lazy import for BeautifulSoup
-        try:
-            from bs4 import BeautifulSoup
-        except ImportError:
-            raise ImportError("beautifulsoup4 is required for token parsing. Run 'pip install beautifulsoup4'.")
-
         if not self.__is_user_logged_in:
             print('You must be logged first')
             exit()
 
         token = None
-        use_selenium = False
 
-        # Try requests first
-        activity_headers = {
-            "Host": self.__host,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
-            "Accept-Encoding": "gzip, deflate, br",
-            "DNT": "1",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "same-origin",
-            "Sec-Fetch-User": "?1",
-            "Referer": f"https://{self.__host}/",
-        }
-        activity_page = self.__s.get(f"https://{self.__host}/Activity", headers=activity_headers)
-        activity_page.raise_for_status()
-        soup = BeautifulSoup(activity_page.text, 'html.parser')
-        token_elem = soup.find('input', {'name': '__RequestVerificationToken'})
-        if token_elem:
-            token = token_elem.get('value')
-            print("DEBUG: Token fetched via requests.")
-        else:
-            # Fallback to Selenium for JS-loaded token
-            try:
-                from selenium import webdriver
-                from selenium.webdriver.chrome.service import Service
-                from selenium.webdriver.common.by import By
-                from selenium.webdriver.support.ui import WebDriverWait
-                from selenium.webdriver.support import expected_conditions as EC
-                from webdriver_manager.chrome import ChromeDriverManager
-                print("DEBUG: Token not in requests HTML—using Selenium for JS render.")
-                use_selenium = True
-                options = webdriver.ChromeOptions()
-                options.add_argument('--headless')
-                options.add_argument('--no-sandbox')
-                options.add_argument('--disable-dev-shm-usage')
-                service = Service(ChromeDriverManager().install())
-                driver = webdriver.Chrome(service=service, options=options)
-                driver.get(f"https://{self.__host}/Activity")
-                # Wait for form or token input (up to 10s)
-                wait = WebDriverWait(driver, 10)
-                token_elem = wait.until(EC.presence_of_element_located((By.NAME, '__RequestVerificationToken')))
-                token = token_elem.get_attribute('value')
-                driver.quit()
-                print("DEBUG: Token fetched via Selenium.")
-            except ImportError:
-                print("DEBUG: Selenium not installed—falling back to no token (may fail with 403). Install with 'pip install selenium webdriver-manager'.")
-            except Exception as se:
-                print(f"DEBUG: Selenium failed ({se})—falling back to no token.")
+        # Try Selenium for token
+        try:
+            from selenium import webdriver
+            from selenium.webdriver.chrome.service import Service
+            from selenium.webdriver.common.by import By
+            from selenium.webdriver.support.ui import WebDriverWait
+            from selenium.webdriver.support import expected_conditions as EC
+            from webdriver_manager.chrome import ChromeDriverManager
+            from bs4 import BeautifulSoup
+            print("DEBUG: Loading /Activity with Selenium for token...")
+            options = webdriver.ChromeOptions()
+            options.add_argument('--headless')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36')
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=options)
+            driver.get(f"https://{self.__host}/Activity")
+            wait = WebDriverWait(driver, 10)
+            token_elem = wait.until(EC.presence_of_element_located((By.NAME, '__RequestVerificationToken')))
+            token = token_elem.get_attribute('value')
+            driver.quit()
+            print("DEBUG: Token fetched with Selenium.")
+        except ImportError:
+            print("DEBUG: Selenium not available—trying POST without token (may fail). Install: pip install selenium webdriver-manager beautifulsoup4")
+        except Exception as e:
+            print(f"DEBUG: Selenium failed ({e})—trying POST without token.")
 
         # Set token if found
         if token:
             self.__s.cookies.set('__RequestVerificationToken', token)
 
-        # Step 2: POST to /Activity/GetActivity (with or without token)
+        # POST to GetActivity
         headers = {
             "Accept": "application/json, text/javascript, */*; q=0.01",
             "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
@@ -258,17 +254,15 @@ class SHDA:
             json=payload
         )
         print(f"DEBUG: POST status: {response.status_code}")
-        if response.status_code != 200:
-            print(f"DEBUG: POST response text: {response.text[:500]}")
         response.raise_for_status()
         data = response.json()
         if not data.get('Success', False):
             error = data.get('Error', {})
             raise ValueError(f"API error: Codigo={error.get('Codigo')}, Descripcion={error.get('Descripcion')}")
 
-        return data.get('Result', [])  # List of activity dicts
+        return data.get('Result', [])
 
-    # [Include all other original methods here - get_bluechips, get_galpones, get_cedear, get_bonds, get_short_term_bonds, get_corporate_bonds, account, get_options, get_MERVAL, get_personal_portfolio, get_repos, get_daily_history - copy from previous]
+    # [Private methods __convert_datetime_to_epoch and __get_broker_data - copy from original]
 
     #########################
     #### PRIVATE METHODS ####
