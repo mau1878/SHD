@@ -610,94 +610,94 @@ class SHDA:
 
         return df
 
-def get_activity(self, comitente, fecha_desde, fecha_hasta, consolida='0'):
-    """
-    Fetches activity/transactions for the broker account.
+    def get_activity(self, comitente, fecha_desde, fecha_hasta, consolida='0'):
+        """
+        Fetches activity/transactions for the broker account.
+        
+        This method uses the /Activity/GetActivity JSON API endpoint which relies
+        on session-based authentication (cookies), NOT on __RequestVerificationToken.
+        
+        Args:
+            comitente (str): Account number (e.g., '47878').
+            fecha_desde (str): Start date in 'dd/mm/yyyy' format (e.g., '01/10/2025').
+            fecha_hasta (str): End date in 'dd/mm/yyyy' format (e.g., '01/11/2025').
+            consolida (str): '0' or '1' for consolidated view (default '0').
+        
+        Returns:
+            list: List of activity dicts (e.g., [{'Comprobante': 'CCTE', ...}]).
+        
+        Raises:
+            ValueError: On API errors.
+            requests.RequestException: On network issues.
+        """
+        if not self.__is_user_logged_in:
+            print('You must be logged first')
+            exit()
     
-    This method uses the /Activity/GetActivity JSON API endpoint which relies
-    on session-based authentication (cookies), NOT on __RequestVerificationToken.
+        # Headers for the JSON API request
+        headers = {
+            'accept': 'application/json, text/javascript, */*; q=0.01',
+            'accept-language': 'es-AR,es;q=0.9,de-DE;q=0.8,de;q=0.7,es-419;q=0.6,en;q=0.5',
+            'content-type': 'application/json; charset=UTF-8',
+            'dnt': '1',
+            'origin': f'https://{self.__host}',
+            'priority': 'u=1, i',
+            'referer': f'https://{self.__host}/Activity',
+            'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-origin',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+            'x-requested-with': 'XMLHttpRequest',
+        }
     
-    Args:
-        comitente (str): Account number (e.g., '47878').
-        fecha_desde (str): Start date in 'dd/mm/yyyy' format (e.g., '01/10/2025').
-        fecha_hasta (str): End date in 'dd/mm/yyyy' format (e.g., '01/11/2025').
-        consolida (str): '0' or '1' for consolidated view (default '0').
+        # JSON payload for the API
+        json_data = {
+            'consolida': consolida,
+            'comitente': comitente,
+            'fechaDesde': fecha_desde,
+            'fechaHasta': fecha_hasta,
+        }
     
-    Returns:
-        list: List of activity dicts (e.g., [{'Comprobante': 'CCTE', ...}]).
+        try:
+            # POST to the API endpoint using session cookies
+            # The session automatically includes .ASPXAUTH and ASP.NET_SessionId cookies
+            response = self.__s.post(
+                f'https://{self.__host}/Activity/GetActivity',
+                headers=headers,
+                json=json_data,
+                timeout=10
+            )
     
-    Raises:
-        ValueError: On API errors.
-        requests.RequestException: On network issues.
-    """
-    if not self.__is_user_logged_in:
-        print('You must be logged first')
-        exit()
-
-    # Headers for the JSON API request
-    headers = {
-        'accept': 'application/json, text/javascript, */*; q=0.01',
-        'accept-language': 'es-AR,es;q=0.9,de-DE;q=0.8,de;q=0.7,es-419;q=0.6,en;q=0.5',
-        'content-type': 'application/json; charset=UTF-8',
-        'dnt': '1',
-        'origin': f'https://{self.__host}',
-        'priority': 'u=1, i',
-        'referer': f'https://{self.__host}/Activity',
-        'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-origin',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-        'x-requested-with': 'XMLHttpRequest',
-    }
-
-    # JSON payload for the API
-    json_data = {
-        'consolida': consolida,
-        'comitente': comitente,
-        'fechaDesde': fecha_desde,
-        'fechaHasta': fecha_hasta,
-    }
-
-    try:
-        # POST to the API endpoint using session cookies
-        # The session automatically includes .ASPXAUTH and ASP.NET_SessionId cookies
-        response = self.__s.post(
-            f'https://{self.__host}/Activity/GetActivity',
-            headers=headers,
-            json=json_data,
-            timeout=10
-        )
-
-        # Check HTTP status
-        response.raise_for_status()
-
-        # Parse JSON response
-        data = response.json()
-
-        # Check for API-level success
-        if not data.get('Success', False):
-            error = data.get('Error', {})
-            error_code = error.get('Codigo', 'UNKNOWN')
-            error_desc = error.get('Descripcion', 'Unknown error')
-            raise ValueError(f"API error: Codigo={error_code}, Descripcion={error_desc}")
-
-        # Extract and return the activity records
-        result = data.get('Result', [])
-        return result
-
-    except requests.exceptions.HTTPError as e:
-        print(f"ERROR: HTTP {e.response.status_code}")
-        print(f"Response: {e.response.text[:500]}")
-        raise
-    except ValueError as e:
-        print(f"ERROR: {e}")
-        raise
-    except Exception as e:
-        print(f"ERROR: Unexpected error: {e}")
-        raise
+            # Check HTTP status
+            response.raise_for_status()
+    
+            # Parse JSON response
+            data = response.json()
+    
+            # Check for API-level success
+            if not data.get('Success', False):
+                error = data.get('Error', {})
+                error_code = error.get('Codigo', 'UNKNOWN')
+                error_desc = error.get('Descripcion', 'Unknown error')
+                raise ValueError(f"API error: Codigo={error_code}, Descripcion={error_desc}")
+    
+            # Extract and return the activity records
+            result = data.get('Result', [])
+            return result
+    
+        except requests.exceptions.HTTPError as e:
+            print(f"ERROR: HTTP {e.response.status_code}")
+            print(f"Response: {e.response.text[:500]}")
+            raise
+        except ValueError as e:
+            print(f"ERROR: {e}")
+            raise
+        except Exception as e:
+            print(f"ERROR: Unexpected error: {e}")
+            raise
 
 
     #########################
