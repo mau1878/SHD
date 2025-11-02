@@ -378,7 +378,7 @@ class SHDA:
             try:
                 from pyquery import PyQuery as pq
             except ImportError:
-                raise ImportError("pyquery is required but not installed.")
+                raise ImportError("pyquery is required but not installed. Run 'pip install pyquery'.")
 
         if not self.__is_user_logged_in:
             print('You must be logged first')
@@ -682,14 +682,15 @@ class SHDA:
         soup = BeautifulSoup(activity_page.text, 'html.parser')
         token_elem = soup.find('input', {'name': '__RequestVerificationToken'})
         if not token_elem:
-            # Debug: Print page info to diagnose
+            # Enhanced debug
             print("DEBUG: Page title:", soup.title.string if soup.title else 'No title')
             print("DEBUG: Number of forms:", len(soup.find_all('form')))
-            print("DEBUG: Search for 'RequestVerificationToken' in text:", 'RequestVerificationToken' in activity_page.text)
-            raise ValueError("Could not find __RequestVerificationToken on /Activity page. Check if logged in and page structure. See DEBUG above.")
+            print("DEBUG: 'RequestVerificationToken' in page text:", 'RequestVerificationToken' in activity_page.text)
+            print("DEBUG: First 2000 chars of page HTML:")
+            print(activity_page.text[:2000])
+            raise ValueError("Could not find __RequestVerificationToken on /Activity page. Check DEBUG output above for page structure. The page may be JS-loaded or redirecting—try manual browser inspection.")
         token = token_elem.get('value')
         self.__s.cookies.set('__RequestVerificationToken', token)
-        print(f"DEBUG: Token fetched: {token[:20]}...")  # Partial for security
 
         # Step 2: POST to /Activity/GetActivity
         headers = {
