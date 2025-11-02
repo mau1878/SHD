@@ -609,91 +609,99 @@ class SHDA:
 
         return df
 
-    def get_activity(self, comitente, fecha_desde, fecha_hasta, consolida='0'):
-        """
-        Fetches activity/transactions for the broker (unified platform).
-        
-        Args:
-            comitente (str): Account number (e.g., '47878').
-            fecha_desde (str): Start date in 'dd/mm/yyyy' format (e.g., '01/10/2025').
-            fecha_hasta (str): End date in 'dd/mm/yyyy' format (e.g., '01/11/2025').
-            consolida (str): '0' or '1' for consolidated view (default '0').
-        
-        Returns:
-            list: List of activity dicts (e.g., [{'Comprobante': 'CCTE', ...}]).
-        
-        Raises:
-            ValueError: On API errors.
-            requests.RequestException: On network issues.
-        """
-        if not self.__is_user_logged_in:
-            print('You must be logged first')
-            exit()
+def get_activity(self, comitente, fecha_desde, fecha_hasta, consolida='0'):
+    """
+    Fetches activity/transactions for the broker (unified platform).
+    
+    Args:
+        comitente (str): Account number (e.g., '47878').
+        fecha_desde (str): Start date in 'dd/mm/yyyy' format (e.g., '01/10/2025').
+        fecha_hasta (str): End date in 'dd/mm/yyyy' format (e.g., '01/11/2025').
+        consolida (str): '0' or '1' for consolidated view (default '0').
+    
+    Returns:
+        list: List of activity dicts (e.g., [{'Comprobante': 'CCTE', ...}]).
+    
+    Raises:
+        ValueError: On API errors.
+        requests.RequestException: On network issues.
+    """
+    if not self.__is_user_logged_in:
+        print('You must be logged first')
+        exit()
 
-        # Try to get token from /Activity (optional)
-        token = None
-        activity_headers = {
-            'sec-ch-ua-platform': '"Windows"',
-            'Referer': f'https://{self.__host}/Activity',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-            'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
-            'DNT': '1',
-            'sec-ch-ua-mobile': '?0',
-        }
-        activity_page = self.__s.get(f'https://{self.__host}/Activity', headers=activity_headers)
-        activity_page.raise_for_status()
-        if 'RequestVerificationToken' in activity_page.text:
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(activity_page.text, 'html.parser')
-            token_elem = soup.find('input', {'name': '__RequestVerificationToken'})
-            if token_elem:
-                token = token_elem.get('value')
-                self.__s.cookies.set('__RequestVerificationToken', token)
+    # Optional: Try to get token from /Activity
+    token = None
+    activity_headers = {
+        "Host": self.__host,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Referer": f"https://{self.__host}/",
+    }
+    activity_page = self.__s.get(f"https://{self.__host}/Activity", headers=activity_headers)
+    activity_page.raise_for_status()
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(activity_page.text, 'html.parser')
+    token_elem = soup.find('input', {'name': '__RequestVerificationToken'})
+    if token_elem:
+        token = token_elem.get('value')
+        self.__s.cookies.set('__RequestVerificationToken', token)
+        print("DEBUG: Token found and set.")
+    else:
+        print("DEBUG: Token not found in static HTML (likely JS-rendered)—proceeding with POST using session cookies.")
 
-        # POST to GetActivity (using session cookies; token if found)
-        headers = {
-            'accept': 'application/json, text/javascript, */*; q=0.01',
-            'accept-language': 'es-AR,es;q=0.9,de-DE;q=0.8,de;q=0.7,es-419;q=0.6,en;q=0.5',
-            'content-type': 'application/json; charset=UTF-8',
-            'dnt': '1',
-            'origin': f'https://{self.__host}',
-            'priority': 'u=1, i',
-            'referer': f'https://{self.__host}/Activity',
-            'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"Windows"',
-            'sec-fetch-dest': 'empty',
-            'sec-fetch-mode': 'cors',
-            'sec-fetch-site': 'same-origin',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-            'x-requested-with': 'XMLHttpRequest',
-        }
+    # POST to GetActivity
+    headers = {
+        'accept': 'application/json, text/javascript, */*; q=0.01',
+        'accept-language': 'es-AR,es;q=0.9,de-DE;q=0.8,de;q=0.7,es-419;q=0.6,en;q=0.5',
+        'content-type': 'application/json; charset=UTF-8',
+        'dnt': '1',
+        'origin': f'https://{self.__host}',
+        'priority': 'u=1, i',
+        'referer': f'https://{self.__host}/Activity',
+        'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+        'x-requested-with': 'XMLHttpRequest',
+    }
 
-        json_data = {
-            'consolida': '0',
-            'comitente': '47878',
-            'fechaDesde': '01/10/2025',
-            'fechaHasta': '01/11/2025',
-        }
+    json_data = {
+        'consolida': consolida,
+        'comitente': comitente,
+        'fechaDesde': fecha_desde,
+        'fechaHasta': fecha_hasta,
+    }
 
-        response = requests.post(
-            f'https://{self.__host}/Activity/GetActivity',
-            cookies=self.__s.cookies,
-            headers=headers,
-            json=json_data,
-        )
+    response = self.__s.post(
+        f'https://{self.__host}/Activity/GetActivity',
+        headers=headers,
+        json=json_data,
+    )
 
-        print(f"DEBUG: POST status: {response.status_code}")
-        if response.status_code != 200:
-            print(f"DEBUG: POST response: {response.text[:500]}")
-            response.raise_for_status()
+    print(f"DEBUG: POST status: {response.status_code}")
+    if response.status_code != 200:
+        print(f"DEBUG: POST response: {response.text[:500]}")
+        response.raise_for_status()
 
-        data = response.json()
-        if not data.get('Success', False):
-            error = data.get('Error', {})
-            raise ValueError(f"API error: Codigo={error.get('Codigo')}, Descripcion={error.get('Descripcion')}")
+    data = response.json()
+    if not data.get('Success', False):
+        error = data.get('Error', {})
+        raise ValueError(f"API error: Codigo={error.get('Codigo')}, Descripcion={error.get('Descripcion')}")
 
-        return data.get('Result', [])  # List of activity dicts
+    return data.get('Result', [])
 
     #########################
     #### PRIVATE METHODS ####
