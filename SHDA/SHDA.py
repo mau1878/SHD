@@ -49,7 +49,7 @@ class SHDA:
     __filter_columns = ['Symbol', 'Term', 'BuyQuantity', 'BuyPrice', 'SellPrice', 'SellQuantity', 'LastPrice', 'VariationRate', 'StartPrice', 'MaxPrice', 'MinPrice', 'PreviousClose', 'TotalAmountTraded', 'TotalQuantityTraded', 'Trades', 'TradeDate', 'Panel']
     __numeric_columns = ['last', 'open', 'high', 'low', 'volume', 'turnover', 'operations', 'change', 'bid_size', 'bid', 'ask_size', 'ask', 'previous_close']
     __numeric_columns_sp = ['last', 'high', 'low','change']
-    __filter_columns_sp = ['Symbol', 'LastPrice', 'VariationRate', 'MaxPrice', 'MinPrice', 'Panel']
+    __filter_columns_sp = ['Symbol', 'LastPrice', 'VariationRate', 'MaxPrice', 'MinCell', 'Panel']
     __sp_columns=['symbol','last','change','high','low','group']
     
     def __init__(self,broker,dni,user,passw):
@@ -71,7 +71,6 @@ class SHDA:
             "Sec-Fetch-Site" : "none",
             "Sec-Fetch-User" : "?1"   
         }
-
 
         response = self.__s.get(url = f"https://{self.__host}", headers=headers)
         status = response.status_code
@@ -631,7 +630,7 @@ class SHDA:
             print('You must be logged first')
             exit()
 
-        # Try to get token from /Activity (optional - fallback if not found)
+        # Try to get token from /Activity (optional)
         token = None
         activity_headers = {
             'sec-ch-ua-platform': '"Windows"',
@@ -651,7 +650,7 @@ class SHDA:
                 token = token_elem.get('value')
                 self.__s.cookies.set('__RequestVerificationToken', token)
 
-        # POST to GetActivity (with session cookies; token if found)
+        # POST to GetActivity (using session cookies; token if found)
         headers = {
             'accept': 'application/json, text/javascript, */*; q=0.01',
             'accept-language': 'es-AR,es;q=0.9,de-DE;q=0.8,de;q=0.7,es-419;q=0.6,en;q=0.5',
@@ -671,10 +670,10 @@ class SHDA:
         }
 
         json_data = {
-            'consolida': consolida,
-            'comitente': comitente,
-            'fechaDesde': fecha_desde,
-            'fechaHasta': fecha_hasta,
+            'consolida': '0',
+            'comitente': '47878',
+            'fechaDesde': '01/10/2025',
+            'fechaHasta': '01/11/2025',
         }
 
         response = requests.post(
