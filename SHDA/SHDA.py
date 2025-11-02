@@ -52,7 +52,7 @@ class SHDA:
     __filter_columns_sp = ['Symbol', 'LastPrice', 'VariationRate', 'MaxPrice', 'MinPrice', 'Panel']
     __sp_columns=['symbol','last','change','high','low','group']
     
-    def __init__(self,broker,dni,user,password):
+    def __init__(self,broker,dni,user,passw):
         self.__s = requests.session()
         self.__host = self.__get_broker_data(broker)['page']
         self.__is_user_logged_in = False
@@ -102,7 +102,7 @@ class SHDA:
             "IpAddress": "",
             "Dni": dni,
             "Usuario": user,
-            "Password": password
+            "password" : passw
         }  
 
         try:
@@ -631,24 +631,17 @@ class SHDA:
             print('You must be logged first')
             exit()
 
-        # Try to get token from /Activity
+        # Try to get token from /Activity (optional - fallback if not found)
         token = None
         activity_headers = {
-            "Host": self.__host,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
-            "Accept-Encoding": "gzip, deflate, br",
-            "DNT": "1",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "same-origin",
-            "Sec-Fetch-User": "?1",
-            "Referer": f"https://{self.__host}/",
+            'sec-ch-ua-platform': '"Windows"',
+            'Referer': f'https://{self.__host}/Activity',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+            'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+            'DNT': '1',
+            'sec-ch-ua-mobile': '?0',
         }
-        activity_page = self.__s.get(f"https://{self.__host}/Activity", headers=activity_headers)
+        activity_page = self.__s.get(f'https://{self.__host}/Activity', headers=activity_headers)
         activity_page.raise_for_status()
         if 'RequestVerificationToken' in activity_page.text:
             from bs4 import BeautifulSoup
@@ -657,9 +650,8 @@ class SHDA:
             if token_elem:
                 token = token_elem.get('value')
                 self.__s.cookies.set('__RequestVerificationToken', token)
-                print("DEBUG: Token set from page.")
 
-        # POST to GetActivity (with or without token)
+        # POST to GetActivity (with session cookies; token if found)
         headers = {
             'accept': 'application/json, text/javascript, */*; q=0.01',
             'accept-language': 'es-AR,es;q=0.9,de-DE;q=0.8,de;q=0.7,es-419;q=0.6,en;q=0.5',
@@ -679,10 +671,10 @@ class SHDA:
         }
 
         json_data = {
-            'consolida': '0',
-            'comitente': '47878',
-            'fechaDesde': '01/10/2025',
-            'fechaHasta': '01/11/2025',
+            'consolida': consolida,
+            'comitente': comitente,
+            'fechaDesde': fecha_desde,
+            'fechaHasta': fecha_hasta,
         }
 
         response = requests.post(
