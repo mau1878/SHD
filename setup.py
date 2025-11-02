@@ -60,4 +60,20 @@ setup(
     platforms=['any'],
     keywords='pandas, BYMA, online, downloader, finance',
     packages=find_packages(exclude=['contrib', 'docs', 'tests', 'examples']),
+    python_requires='>=3.8',
+    install_requires=[
+        'requests>=2.25.1',
+        'pandas>=1.3.0',
+        'numpy>=1.21.0',
+        'pyquery>=1.4.3',
+        'beautifulsoup4>=4.12.0',
+        'selenium>=4.15.0',
+        'webdriver-manager>=4.0.1',  # Auto-downloads ChromeDriver
+    ],
+    extras_require={
+        'dev': [
+            'pytest',
+            'black',
+        ],
+    },
 )
