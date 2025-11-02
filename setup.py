@@ -68,7 +68,7 @@ setup(
         'pyquery>=1.4.3',
         'beautifulsoup4>=4.12.0',
         'selenium>=4.15.0',
-        'webdriver-manager>=4.0.1',  # Auto-downloads ChromeDriver
+        'webdriver-manager>=4.0.1',
     ],
     extras_require={
         'dev': [
