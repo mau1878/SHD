@@ -119,17 +119,6 @@ class SHDA:
 
                 raise SessionException('Session cannot be created.  Check the entered information and try again.')
 
-            # Parse token from login response (dashboard page)
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(response.text, 'html.parser')
-            token_elem = soup.find('input', {'name': '__RequestVerificationToken'})
-            if token_elem:
-                token = token_elem.get('value')
-                self.__s.cookies.set('__RequestVerificationToken', token)
-                print("DEBUG: Token set from login response.")
-            else:
-                print("DEBUG: No token in login response - using session as is.")
-
             print("Connected!")
             self.__is_user_logged_in = True
         except Exception as ex:
@@ -347,7 +336,7 @@ class SHDA:
             "DNT" : "1",    
             "Host" : f"{self.__host}",
             "Origin" : f"https://{self.__host}",
-            "Referer" : "https://{self.__host}/Prices/Stocks",
+            "Referer" : f"https://{self.__host}/Prices/Stocks",
             "Sec-Fetch-Dest" : "empty",
             "Sec-Fetch-Mode" : "cors",
             "Sec-Fetch-Site" : "same-origin",
@@ -642,7 +631,7 @@ class SHDA:
             print('You must be logged first')
             exit()
 
-        # POST to GetActivity (token set in login)
+        # POST to GetActivity (using session cookies; token if found in login)
         headers = {
             'accept': 'application/json, text/javascript, */*; q=0.01',
             'accept-language': 'es-AR,es;q=0.9,de-DE;q=0.8,de;q=0.7,es-419;q=0.6,en;q=0.5',
@@ -686,7 +675,9 @@ class SHDA:
 
         return data.get('Result', [])
 
-    # [Private methods]
+    #########################
+    #### PRIVATE METHODS ####
+    #########################
     def __convert_datetime_to_epoch(self, dt):
 
         if isinstance(dt, str):
