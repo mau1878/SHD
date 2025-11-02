@@ -119,6 +119,17 @@ class SHDA:
 
                 raise SessionException('Session cannot be created.  Check the entered information and try again.')
 
+            # Parse token from login response (dashboard page)
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(response.text, 'html.parser')
+            token_elem = soup.find('input', {'name': '__RequestVerificationToken'})
+            if token_elem:
+                token = token_elem.get('value')
+                self.__s.cookies.set('__RequestVerificationToken', token)
+                print("DEBUG: Token set from login response.")
+            else:
+                print("DEBUG: No token in login response - using session as is.")
+
             print("Connected!")
             self.__is_user_logged_in = True
         except Exception as ex:
@@ -631,29 +642,7 @@ class SHDA:
             print('You must be logged first')
             exit()
 
-        # Optional token fetch (no raise if not found)
-        token = None
-        activity_headers = {
-            'sec-ch-ua-platform': '"Windows"',
-            'Referer': f'https://{self.__host}/Activity',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-            'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
-            'DNT': '1',
-            'sec-ch-ua-mobile': '?0',
-        }
-        activity_page = self.__s.get(f'https://{self.__host}/Activity', headers=activity_headers)
-        activity_page.raise_for_status()
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(activity_page.text, 'html.parser')
-        token_elem = soup.find('input', {'name': '__RequestVerificationToken'})
-        if token_elem:
-            token = token_elem.get('value')
-            self.__s.cookies.set('__RequestVerificationToken', token)
-            print("DEBUG: Token found in HTML and set in cookies.")
-        else:
-            print("DEBUG: Token not found in HTML - proceeding with POST using session cookies.")
-
-        # POST to GetActivity
+        # POST to GetActivity (token set in login)
         headers = {
             'accept': 'application/json, text/javascript, */*; q=0.01',
             'accept-language': 'es-AR,es;q=0.9,de-DE;q=0.8,de;q=0.7,es-419;q=0.6,en;q=0.5',
@@ -672,9 +661,6 @@ class SHDA:
             'x-requested-with': 'XMLHttpRequest',
         }
 
-        if token:
-            headers['RequestVerificationToken'] = token  # Add to header as fallback
-
         json_data = {
             'consolida': consolida,
             'comitente': comitente,
@@ -690,7 +676,7 @@ class SHDA:
 
         print(f"DEBUG: POST status: {response.status_code}")
         if response.status_code != 200:
-            print(f"DEBUG: POST response: {response.text}")
+            print(f"DEBUG: POST response: {response.text[:500]}")
             response.raise_for_status()
 
         data = response.json()
@@ -701,10 +687,6 @@ class SHDA:
         return data.get('Result', [])
 
     # [Private methods]
-
-    #########################
-    #### PRIVATE METHODS ####
-    #########################
     def __convert_datetime_to_epoch(self, dt):
 
         if isinstance(dt, str):
