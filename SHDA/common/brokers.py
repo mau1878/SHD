@@ -98,6 +98,6 @@ brokers = [
     {
     'broker_id': 284,
     'name': 'Veta Capital S.A.',
-    'page': 'cuentas.vetacapital.com.ar'
+    'page': 'cuentas.vetacap.com.ar'
     },
 ]
